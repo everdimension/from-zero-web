@@ -1,4 +1,11 @@
+import { isTruthy } from "is-truthy-ts";
 import type { MetaFunction } from "@remix-run/node";
+import { useLoaderData } from "@remix-run/react";
+import { Spacer } from "structure-kit";
+import { baseToCommon } from "~/shared/convert";
+import { truncateAddress } from "~/shared/truncateAddress";
+
+const TOKEN_ADDRESS = "0x88129563b5cd13bd6f0e2dae364b35a5771cbc5e";
 
 export const meta: MetaFunction = () => {
   return [
@@ -6,133 +13,274 @@ export const meta: MetaFunction = () => {
     { name: "description", content: "Welcome to Remix!" },
   ];
 };
+interface Token {
+  circulating_market_cap: string;
+  icon_url: string;
+  name: string;
+  decimals: string;
+  symbol: string;
+  address: string;
+  type: string;
+  holders: string;
+  exchange_rate: string;
+  total_supply: string;
+}
 
-export default function Index() {
+function getTotalSupply(token: Token) {
+  const { decimals, total_supply } = token;
+  return baseToCommon(total_supply, Number(decimals)).toNumber();
+}
+
+function formatPercent(value: number) {
+  const formatter =
+    value < 0.01
+      ? new Intl.NumberFormat("en", {
+          style: "percent",
+          maximumSignificantDigits: 1,
+        })
+      : new Intl.NumberFormat("en", { style: "percent" });
+  return formatter.format(value);
+}
+
+interface ZerionIdentifier {
+  address: string;
+  nft: {
+    chain: string;
+    contractAddress: string;
+    tokenId: string;
+    metadata: {
+      name: string;
+      content: {
+        type: string;
+        audioUrl: string | null;
+        imagePreviewUrl: string | null;
+        imageUrl: string | null;
+        videoUrl: string | null;
+      };
+    };
+  };
+  identities: { provider: "ens"; address: string; handle: string }[];
+}
+interface IndentifiersResponse {
+  meta: null;
+  data: ZerionIdentifier[];
+  errors: null;
+}
+
+async function getWalletsMeta({ identifiers }: { identifiers: string[] }) {
+  const url = new URL("https://zpi.zerion.io/wallet/get-meta/v1");
+  url.searchParams.set("identifiers", identifiers.join(","));
+  const x = await fetch(url.toString(), {
+    headers: new Headers({
+      "x-request-id": crypto.randomUUID(),
+      "zerion-client-type": "web",
+      "zerion-client-version": "1.0.0",
+    }),
+  });
+  return (await x.json()) as IndentifiersResponse;
+}
+
+function splitIntoChunks<T>(arr: T[], size: number) {
+  const chunks: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) {
+    chunks.push(arr.slice(i, i + size));
+  }
+  return chunks;
+}
+
+async function resolveEnsByChunks({ addresses }: { addresses: string[] }) {
+  const chunks = splitIntoChunks(addresses, 10);
+  const results = await Promise.all(
+    chunks.map((chunk) => getWalletsMeta({ identifiers: chunk }))
+  );
+  return results
+    .map((response) => response.data)
+    .filter(isTruthy)
+    .flat();
+}
+
+async function getHolders() {
+  interface HoldersResponse {
+    items: Array<{
+      address: {
+        hash: string;
+        implementation_name: "implementationName";
+        name: string;
+        is_contract: boolean;
+        is_verified: boolean;
+      };
+      value: string;
+      token_id: string;
+      token: Token;
+    }>;
+    next_page_params: { items_count: number; value: number };
+  }
+  const url = `https://zero-network.calderaexplorer.xyz/api/v2/tokens/${TOKEN_ADDRESS}/holders`;
+  const response = await fetch(url);
+  const result = (await response.json()) as HoldersResponse;
+  return result;
+}
+
+async function getTokenCounters() {
+  interface TokenCountersResponse {
+    token_holders_count: string;
+    transfers_count: string;
+  }
+  const url = `https://zero-network.calderaexplorer.xyz/api/v2/tokens/${TOKEN_ADDRESS}/counters`;
+  const response = await fetch(url);
+  const result = (await response.json()) as TokenCountersResponse;
+  return result;
+}
+
+export const loader = async () => {
+  const [holders, counters] = await Promise.all([
+    getHolders(),
+    getTokenCounters(),
+  ]);
+  const ZERO_TOKEN = holders.items[0].token;
+  const totalSupply = getTotalSupply(ZERO_TOKEN);
+  const addresses = holders.items.map((item) => item.address.hash);
+  const identities = await resolveEnsByChunks({ addresses });
+  const handles = new Map<string, string>();
+  for (const x of identities) {
+    if (x.identities[0]?.handle) {
+      handles.set(x.address, x.identities[0].handle);
+    }
+  }
+  return {
+    // result: holders,
+    holders: holders.items.map((item) => ({
+      address: item.address.hash,
+      handle: handles.get(item.address.hash),
+      valueConverted: baseToCommon(
+        item.value,
+        Number(item.token.decimals)
+      ).toNumber(),
+      allocation:
+        Number(BigInt(item.value)) / Number(BigInt(item.token.total_supply)),
+    })),
+    totalSupply,
+    token: ZERO_TOKEN,
+    counters,
+  };
+};
+
+function Layout(props: React.PropsWithChildren) {
   return (
-    <div className="flex h-screen items-center justify-center">
-      <div className="flex flex-col items-center gap-16">
-        <header className="flex flex-col items-center gap-9">
-          <h1 className="leading text-2xl font-bold text-gray-800 dark:text-gray-100">
-            Welcome to <span className="sr-only">Remix</span>
-          </h1>
-          <div className="h-[144px] w-[434px]">
-            <img
-              src="/logo-light.png"
-              alt="Remix"
-              className="block w-full dark:hidden"
-            />
-            <img
-              src="/logo-dark.png"
-              alt="Remix"
-              className="hidden w-full dark:block"
-            />
-          </div>
-        </header>
-        <nav className="flex flex-col items-center justify-center gap-4 rounded-3xl border border-gray-200 p-6 dark:border-gray-700">
-          <p className="leading-6 text-gray-700 dark:text-gray-200">
-            What&apos;s next?
-          </p>
-          <ul>
-            {resources.map(({ href, text, icon }) => (
-              <li key={href}>
-                <a
-                  className="group flex items-center gap-3 self-stretch p-3 leading-normal text-blue-700 hover:underline dark:text-blue-500"
-                  href={href}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  {icon}
-                  {text}
-                </a>
-              </li>
-            ))}
-          </ul>
-        </nav>
-      </div>
+    <>
+      <div
+        style={{ maxWidth: 600, marginInline: "auto", paddingInline: 14 }}
+        {...props}
+      />
+      <Spacer height={80} />
+    </>
+  );
+}
+
+function StatCell({
+  name,
+  value,
+}: {
+  name: React.ReactNode;
+  value: React.ReactNode;
+}) {
+  return (
+    <div>
+      <div style={{ color: "var(--gray-5)" }}>{name}</div>
+      <div className="text-lg">{value}</div>
     </div>
   );
 }
 
-const resources = [
-  {
-    href: "https://remix.run/start/quickstart",
-    text: "Quick Start (5 min)",
-    icon: (
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="24"
-        height="20"
-        viewBox="0 0 20 20"
-        fill="none"
-        className="stroke-gray-600 group-hover:stroke-current dark:stroke-gray-300"
+function TokenStats({
+  token,
+  totalSupply,
+  transfersCount,
+}: {
+  token: Token;
+  totalSupply: number;
+  transfersCount: number;
+}) {
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 28 }}>
+      <StatCell name="Holders" value={token.holders} />
+      <StatCell
+        name="Total Supply"
+        value={new Intl.NumberFormat("en", { notation: "compact" }).format(
+          totalSupply
+        )}
+      />
+      <StatCell name="Transfers" value={transfersCount} />
+    </div>
+  );
+}
+
+export default function Index() {
+  const { holders, token, totalSupply, counters } =
+    useLoaderData<typeof loader>();
+  return (
+    <Layout>
+      <Spacer height={40} />
+      <h1 className="text-6xl">0</h1>
+      <Spacer height={40} />
+      <TokenStats
+        token={token}
+        totalSupply={totalSupply}
+        transfersCount={Number(counters.transfers_count)}
+      />
+      <Spacer height={60} />
+      <h2 className="text-2xl font-bold">Leaderboard</h2>
+      <Spacer height={40} />
+      <div
+        style={{
+          width: "100%",
+          display: "grid",
+          gridTemplateColumns: "minmax(max-content, auto) auto auto",
+          gap: 10,
+        }}
       >
-        <path
-          d="M8.51851 12.0741L7.92592 18L15.6296 9.7037L11.4815 7.33333L12.0741 2L4.37036 10.2963L8.51851 12.0741Z"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
-    ),
-  },
-  {
-    href: "https://remix.run/start/tutorial",
-    text: "Tutorial (30 min)",
-    icon: (
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="24"
-        height="20"
-        viewBox="0 0 20 20"
-        fill="none"
-        className="stroke-gray-600 group-hover:stroke-current dark:stroke-gray-300"
-      >
-        <path
-          d="M4.561 12.749L3.15503 14.1549M3.00811 8.99944H1.01978M3.15503 3.84489L4.561 5.2508M8.3107 1.70923L8.3107 3.69749M13.4655 3.84489L12.0595 5.2508M18.1868 17.0974L16.635 18.6491C16.4636 18.8205 16.1858 18.8205 16.0144 18.6491L13.568 16.2028C13.383 16.0178 13.0784 16.0347 12.915 16.239L11.2697 18.2956C11.047 18.5739 10.6029 18.4847 10.505 18.142L7.85215 8.85711C7.75756 8.52603 8.06365 8.21994 8.39472 8.31453L17.6796 10.9673C18.0223 11.0653 18.1115 11.5094 17.8332 11.7321L15.7766 13.3773C15.5723 13.5408 15.5554 13.8454 15.7404 14.0304L18.1868 16.4767C18.3582 16.6481 18.3582 16.926 18.1868 17.0974Z"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
-    ),
-  },
-  {
-    href: "https://remix.run/docs",
-    text: "Remix Docs",
-    icon: (
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="24"
-        height="20"
-        viewBox="0 0 20 20"
-        fill="none"
-        className="stroke-gray-600 group-hover:stroke-current dark:stroke-gray-300"
-      >
-        <path
-          d="M9.99981 10.0751V9.99992M17.4688 17.4688C15.889 19.0485 11.2645 16.9853 7.13958 12.8604C3.01467 8.73546 0.951405 4.11091 2.53116 2.53116C4.11091 0.951405 8.73546 3.01467 12.8604 7.13958C16.9853 11.2645 19.0485 15.889 17.4688 17.4688ZM2.53132 17.4688C0.951566 15.8891 3.01483 11.2645 7.13974 7.13963C11.2647 3.01471 15.8892 0.951453 17.469 2.53121C19.0487 4.11096 16.9854 8.73551 12.8605 12.8604C8.73562 16.9853 4.11107 19.0486 2.53132 17.4688Z"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-        />
-      </svg>
-    ),
-  },
-  {
-    href: "https://rmx.as/discord",
-    text: "Join Discord",
-    icon: (
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="24"
-        height="20"
-        viewBox="0 0 24 20"
-        fill="none"
-        className="stroke-gray-600 group-hover:stroke-current dark:stroke-gray-300"
-      >
-        <path
-          d="M15.0686 1.25995L14.5477 1.17423L14.2913 1.63578C14.1754 1.84439 14.0545 2.08275 13.9422 2.31963C12.6461 2.16488 11.3406 2.16505 10.0445 2.32014C9.92822 2.08178 9.80478 1.84975 9.67412 1.62413L9.41449 1.17584L8.90333 1.25995C7.33547 1.51794 5.80717 1.99419 4.37748 2.66939L4.19 2.75793L4.07461 2.93019C1.23864 7.16437 0.46302 11.3053 0.838165 15.3924L0.868838 15.7266L1.13844 15.9264C2.81818 17.1714 4.68053 18.1233 6.68582 18.719L7.18892 18.8684L7.50166 18.4469C7.96179 17.8268 8.36504 17.1824 8.709 16.4944L8.71099 16.4904C10.8645 17.0471 13.128 17.0485 15.2821 16.4947C15.6261 17.1826 16.0293 17.8269 16.4892 18.4469L16.805 18.8725L17.3116 18.717C19.3056 18.105 21.1876 17.1751 22.8559 15.9238L23.1224 15.724L23.1528 15.3923C23.5873 10.6524 22.3579 6.53306 19.8947 2.90714L19.7759 2.73227L19.5833 2.64518C18.1437 1.99439 16.6386 1.51826 15.0686 1.25995ZM16.6074 10.7755L16.6074 10.7756C16.5934 11.6409 16.0212 12.1444 15.4783 12.1444C14.9297 12.1444 14.3493 11.6173 14.3493 10.7877C14.3493 9.94885 14.9378 9.41192 15.4783 9.41192C16.0471 9.41192 16.6209 9.93851 16.6074 10.7755ZM8.49373 12.1444C7.94513 12.1444 7.36471 11.6173 7.36471 10.7877C7.36471 9.94885 7.95323 9.41192 8.49373 9.41192C9.06038 9.41192 9.63892 9.93712 9.6417 10.7815C9.62517 11.6239 9.05462 12.1444 8.49373 12.1444Z"
-          strokeWidth="1.5"
-        />
-      </svg>
-    ),
-  },
-];
+        <div style={{ display: "contents", color: "var(--gray-6)" }}>
+          <span>Address</span>
+          <span>Volume</span>
+          <span>
+            <span className="hidden sm:inline">Allocation</span>
+            <span className="sm:hidden">Allc.</span>
+          </span>
+        </div>
+        {holders.map((holder, index) => (
+          <div key={holder.address} style={{ display: "contents" }}>
+            <span>
+              <span
+                style={{
+                  userSelect: "none",
+                  width: 50,
+                  marginLeft: "calc(0px - 50px - 0.5em)",
+                  marginRight: "0.5em",
+                  textAlign: "right",
+                }}
+                className="hidden sm:inline-block text-gray-500"
+              >
+                {index + 1}
+              </span>
+              <a
+                className="underline hover:no-underline visited:text-gray-500"
+                href={`https://app.zerion.io/${holder.address}/overview`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ overflowWrap: "break-word" }}
+              >
+                {holder.handle || truncateAddress(holder.address)}
+              </a>
+            </span>
+            <span>
+              {new Intl.NumberFormat("en", { notation: "compact" }).format(
+                holder.valueConverted
+              )}
+            </span>
+            <span>{formatPercent(holder.allocation)}</span>
+          </div>
+        ))}
+      </div>
+    </Layout>
+  );
+}

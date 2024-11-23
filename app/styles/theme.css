@@ -1,0 +1,14 @@
+@import "/node_modules/open-props/src/extra/theme.light.css";
+@import "/node_modules/open-props/src/extra/theme.dark.css"
+  (prefers-color-scheme: dark);
+
+/** TODO: Write all theme variables locally, do not import from open-props */
+/** Theme overrides */
+:where(html) {
+  --always-black: black;
+  --always-white: white;
+
+  --link: var(--indigo-6);
+  --link-visited: var(--violet-5);
+  --link-hover: var(--indigo-5);
+}
