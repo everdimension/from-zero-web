@@ -1,6 +1,7 @@
 @import "/node_modules/open-props/src/props.colors.css";
 @import "/node_modules/open-props/src/props.gradients.css";
 @import "./theme.css";
+@import "./shared.css";
 
 body {
   -webkit-font-smoothing: antialiased;

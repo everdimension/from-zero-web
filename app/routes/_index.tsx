@@ -4,6 +4,7 @@ import { useLoaderData } from "@remix-run/react";
 import { Spacer } from "structure-kit";
 import { baseToCommon } from "~/shared/convert";
 import { truncateAddress } from "~/shared/truncateAddress";
+import { useEffect, useState } from "react";
 
 const TOKEN_ADDRESS = "0x88129563b5cd13bd6f0e2dae364b35a5771cbc5e";
 
@@ -215,13 +216,37 @@ function TokenStats({
   );
 }
 
+function ToZeroEffect() {
+  const [value, setValue] = useState<string | number>(0);
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      const useLetter = Math.random() > 0.75;
+      const letters = ["a", "b", "c", "d", "e", "f", "x"];
+      const randomNum = Math.min(9, Math.round(Math.random() * 10));
+      const randomLetter = letters[Math.floor(Math.random() * letters.length)];
+      setValue(useLetter ? randomLetter : randomNum);
+    }, 20);
+    const timeoutId = setTimeout(() => {
+      clearInterval(intervalId);
+      setValue(0);
+    }, 3500);
+    return () => {
+      clearInterval(intervalId);
+      clearTimeout(timeoutId);
+    };
+  }, []);
+  return <span>{value}</span>;
+}
+
 export default function Index() {
   const { holders, token, totalSupply, counters } =
     useLoaderData<typeof loader>();
   return (
     <Layout>
       <Spacer height={40} />
-      <h1 className="text-6xl">0</h1>
+      <h1 className="text-6xl">
+        <ToZeroEffect />
+      </h1>
       <Spacer height={40} />
       <TokenStats
         token={token}

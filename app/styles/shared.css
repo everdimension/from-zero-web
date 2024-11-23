@@ -1,0 +1,9 @@
+@keyframes blinker {
+  50% {
+    opacity: 0;
+  }
+}
+.blink {
+  animation: blinker 0.01s step-start;
+  animation-iteration-count: 300;
+}
