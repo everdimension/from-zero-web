@@ -6,7 +6,6 @@
 body {
   -webkit-font-smoothing: antialiased;
   font-family: monospace;
-  background: var(--gray-0);
 }
 
 a.link {

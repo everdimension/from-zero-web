@@ -2,6 +2,16 @@
 @import "/node_modules/open-props/src/extra/theme.dark.css"
   (prefers-color-scheme: dark);
 
+body.theme {
+  background-color: var(--gray-1);
+}
+
+@media (prefers-color-scheme: dark) {
+  body.theme {
+    background-color: Canvas;
+  }
+}
+
 /** TODO: Write all theme variables locally, do not import from open-props */
 /** Theme overrides */
 :where(html) {

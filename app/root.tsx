@@ -6,9 +6,8 @@ import {
   ScrollRestoration,
 } from "@remix-run/react";
 import type { LinksFunction } from "@remix-run/node";
-import stylesHref from "./styles/main.css?url";
-
 import "./tailwind.css";
+import stylesHref from "./styles/main.css?url";
 
 export const links: LinksFunction = () => [
   { rel: "icon", href: "/zero-200x200.svg", type: "image/svg+xml" },
@@ -35,7 +34,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <Meta />
         <Links />
       </head>
-      <body>
+      <body className="theme">
         {children}
         <ScrollRestoration />
         <Scripts />
