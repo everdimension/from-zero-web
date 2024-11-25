@@ -10,8 +10,8 @@ const TOKEN_ADDRESS = "0x88129563b5cd13bd6f0e2dae364b35a5771cbc5e";
 
 export const meta: MetaFunction = () => {
   return [
-    { title: "New Remix App" },
-    { name: "description", content: "Welcome to Remix!" },
+    { title: "From Zero" },
+    { name: "description", content: "Zero Promise Project" },
   ];
 };
 interface Token {
@@ -229,7 +229,7 @@ function ToZeroEffect() {
     const timeoutId = setTimeout(() => {
       clearInterval(intervalId);
       setValue(0);
-    }, 3500);
+    }, 2500);
     return () => {
       clearInterval(intervalId);
       clearTimeout(timeoutId);
