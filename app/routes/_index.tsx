@@ -248,6 +248,11 @@ export default function Index() {
         <ToZeroEffect />
       </h1>
       <Spacer height={40} />
+      <div>
+        Zero is the totality of the universe. It encapsulates everything and
+        nothing. All that is and nothing at all. It exists in a quantum state.
+      </div>
+      <Spacer height={40} />
       <TokenStats
         token={token}
         totalSupply={totalSupply}
