@@ -7,6 +7,9 @@ body.theme {
 }
 
 @media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+  }
   body.theme {
     background-color: Canvas;
   }
